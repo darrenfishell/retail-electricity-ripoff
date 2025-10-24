@@ -20,7 +20,7 @@ const premium_total_result = Array.from(await cost_db.sql`
     FROM cost_db
 `);
 const total_variance = premium_total_result[0]?.total_variance;
-const formatted_total = "$" + (total_variance / 1_000_000).toFixed(1) + "M";
+const formatted_total = "$" + (total_variance / 1_000_000).toFixed(0) + "M";
 const year_range = premium_total_result[0]?.min_year + " - " + premium_total_result[0]?.max_year
 const dark = Generators.dark();
 ```
@@ -31,7 +31,7 @@ const text_fill = dark ? 'white' : 'black';
 
 <div class="hero">
 
-# Maine's $180.5M (and counting) retail electricity ripoff
+# Maine's $200M (and counting) retail electricity ripoff
 
 ## Each year since 2013, Maine customers have paid more than they needed to for electricity. If customers had taken the standard offer instead of buying service from retail suppliers, who sometimes sell door-to-door, they would have saved ${formatted_total} from ${year_range}.
 
