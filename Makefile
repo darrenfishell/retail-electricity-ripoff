@@ -11,7 +11,7 @@ all: env run
 .PHONY: env
 env:
 	@echo "Creating Conda environment from $(ENV_FILE)..."
-	conda env create -f $(ENV_FILE) -n $(ENV_NAME) || echo "Environment may already exist."
+	conda env create -f $(ENV_FILE) -n $(ENV_NAME) || echo "Environment may already exist."ç
 
 # Run Python script in environment
 .PHONY: run
