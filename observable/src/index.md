@@ -22,11 +22,6 @@ const premium_total_result = Array.from(await cost_db.sql`
 const total_variance = premium_total_result[0]?.total_variance;
 const formatted_total = "$" + (total_variance / 1_000_000).toFixed(0) + "M";
 const year_range = premium_total_result[0]?.min_year + " - " + premium_total_result[0]?.max_year
-const dark = Generators.dark();
-```
-
-```js
-const text_fill = dark ? 'white' : 'black';
 ```
 
 <div class="hero">
@@ -44,7 +39,7 @@ function createAnnualPremiumChart({
                                       yearRange,
                                       width = 500,
                                       height = 400,
-                                      barColor = "steelBlue",
+                                      barColor = "#e06060",
                                       title = null
                                   }) {
     return Plot.plot({
@@ -110,9 +105,9 @@ const barChart = createAnnualPremiumChart({
     width: width,
     height: 400
 });
-
-display(barChart)
 ```
+
+<div class="chart-container chart-primary">${barChart}</div>
 
 ```js
 // Query data by utility company for the bubble chart
@@ -134,7 +129,7 @@ const utilityChart = Plot.plot({
         Plot.barX(utility_summary, {
             x: "cost_variance",
             y: "name",
-            fill: "steelblue",  // Add color to the bars
+            fill: "#e06060",
             tip: true,
             sort: {y: "x", reverse: true}
         }),
@@ -197,7 +192,11 @@ const lineChart = Plot.plot({
     title: `Electricity Price Trends: Standard Offer vs. Retail Rates`,
     subtitle: `Plotted against the annual average for ${utility?.name ?? 'all suppliers'}`,
     className: "custom-plot",
-    color: {legend: true},
+    color: {
+        legend: true,
+        domain: ['Standard offer', 'Retail supplier'],
+        range: ['#4dc4c4', '#e06060']
+    },
     x: {label: "Year"},
     y: {
         label: "Price (¢/kWh)",
@@ -234,14 +233,9 @@ const line_trend = view(lineChart)
 ```
 
 <div class="dashboard">
-
-<div class="grid grid-cols-2" style="gap: 1rem; align-items: start;">
-    <div class="chart-container">
-      ${utilityChart}
-    </div>
-    <div class="chart-container">
-      ${lineChart}
-    </div>
+<div class="grid grid-cols-2" style="gap: 1.5rem; align-items: start;">
+  <div class="chart-container">${utilityChart}</div>
+  <div class="chart-container">${lineChart}</div>
 </div>
 </div>
 

@@ -1,96 +1,251 @@
-/* BASE STYLES */
 @import url("observablehq:default.css");
-@import url("observablehq:theme-near-midnight.css");
 
-/*********
-INLINE STYLES MOVED FROM BOTTOM OF INDEX.MD
-*********/
+/* ── Override Observable theme variables to match darrenfishell.website ── */
+
+:root {
+  --theme-background: #000a26;
+  --theme-foreground: rgba(255, 255, 255, 0.9);
+  --theme-foreground-muted: rgba(255, 255, 255, 0.65);
+  --theme-foreground-faint: rgba(255, 255, 255, 0.2);
+  --theme-foreground-focus: #00cccc;
+  --theme-background-alt: rgba(255, 255, 255, 0.05);
+  --sans-serif: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color-scheme: dark;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 50%, rgba(255, 0, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(0, 255, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 40% 20%, rgba(255, 255, 0, 0.08) 0%, transparent 50%),
+    linear-gradient(135deg, #000428 0%, #004e92 100%);
+  background-attachment: fixed;
+  color: var(--theme-foreground);
+  min-height: 100vh;
+}
+
+/* ── Header (glassmorphism nav matching main site masthead) ── */
+
+#observablehq-header {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+#observablehq-header a {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+#observablehq-header a:hover {
+  color: #fff;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* ── Typography (Helvetica Neue, matching main site hierarchy) ── */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--sans-serif);
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: bold;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+p {
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+}
+
+a {
+  color: rgba(255, 255, 255, 0.9);
+  text-decoration: underline;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  transition: color 0.2s ease;
+}
+
+a:hover, a:active {
+  color: #fff;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* ── Hero section ── */
 
 .hero {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    font-family: var(--sans-serif);
-    margin: 0 0 4rem;
-    text-wrap: balance;
-    text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--sans-serif);
+  margin: 2rem 0 3rem;
+  text-wrap: balance;
+  text-align: center;
 }
 
 .hero h1 {
-    margin: 1rem 0;
-    padding: 1rem 0;
-    font-size: 3em;
-    max-width: 40em;
-    font-weight: 800;
-    line-height: 1;
-    background: linear-gradient(30deg, var(--theme-foreground-focus), currentColor);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  margin: 1rem 0;
+  padding: 1rem 0;
+  font-size: 2.5em;
+  max-width: 20em;
+  font-weight: 800;
+  line-height: 1.1;
+  background: linear-gradient(30deg, #00cccc, #e680b0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .hero h2 {
-    margin: 0;
-    font-size: 1em;
-    font-style: initial;
-    font-weight: 500;
-    line-height: 1.5;
-    color: var(--theme-foreground-muted);
+  margin: 0;
+  max-width: 640px;
+  font-size: 1.1em;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: none;
 }
 
-@media (max-width: 768px) {
-    .grid-cols-2 {
-        grid-template-columns: 1fr !important;
-    }
+/* ── Content width constraints (prose at 740px, charts wider) ── */
 
-
+p, table, figcaption, h2, h3, h4, h5, h6, blockquote, em {
+  max-width: 740px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-/*********
-CUSTOM VISUALIZATION STYLES
-*********/
-
-p, table, figure, figcaption, h1, h2, h3, h4, h5, h6, .katex-display, blockquote {
-    max-width: 100%;
+.hero h1,
+.hero h2 {
+  max-width: 100%;
 }
+
+figure {
+  max-width: 100%;
+}
+
+/* ── Dashboard (glassmorphism card matching main site containers) ── */
 
 .dashboard {
-    max-width: ${width} px;
-    margin: 0 auto;
-    font-family: system-ui, sans-serif;
-    border: 1px solid var(--theme-foreground-muted);
-    padding: 0 10px;
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .chart-container {
-    background: ${text_fill};
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 1rem;
+  min-height: 350px;
+  position: relative;
+  overflow: hidden;
 }
+
+.chart-container.chart-primary {
+  min-height: 420px;
+  margin-bottom: 2rem;
+}
+
+.chart-container:not(:has(svg, figure))::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+.chart-container:has(svg, figure) {
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Blockquotes (matching main site style) ── */
 
 blockquote {
-    background-color: rgba(232, 232, 232, 0.2);
-    border-left: 4px solid #ddd;
-    margin: 1em 0;
-    font-style: italic;
-    font-size: 1.1em;
-    padding: 0.3em 1.5em;
-    border-radius: 4px;
+  border-left: 2px solid rgba(255, 255, 255, 0.3);
+  padding: 0.1em 1em;
+  margin-top: 1.5em;
+  margin-bottom: 1.5em;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 1.1em;
+  font-style: italic;
+  background: none;
+  border-radius: 0;
 }
+
+blockquote a {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* ── Observable Plot overrides ── */
 
 svg.custom-plot {
-    color: ${text_fill};
-    fill: ${text_fill};
-    font-size: 0.8em;
-}
-
-svg.custom-plot .plot-title .plot-subtitle {
-    text-anchor: start;
+  color: rgba(255, 255, 255, 0.9);
+  fill: rgba(255, 255, 255, 0.9);
+  font-size: 0.85em;
 }
 
 svg.custom-plot g[aria-label='tip'] {
-    font-size: 0.75em;
+  font-size: 0.75em;
 }
 
 svg.custom-plot g[aria-label='tip'] text {
-    fill: black;
+  fill: #111;
+}
+
+/* ── Footer ── */
+
+#observablehq-footer {
+  margin-top: 4rem;
+  padding: 1.5rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9em;
+  text-align: center;
+  letter-spacing: 0.3px;
+}
+
+#observablehq-footer a {
+  color: rgba(255, 255, 255, 0.7);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+#observablehq-footer a:hover {
+  color: #fff;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 768px) {
+  .grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+  .hero h1 {
+    font-size: 2em;
+  }
+  .dashboard {
+    padding: 1rem;
+    margin: 1rem 0;
+  }
 }

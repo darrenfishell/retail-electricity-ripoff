@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ "main" ]  # Change if your default branch is different
+    branches: ["main"]
   workflow_dispatch:
 
 permissions:
@@ -17,49 +17,36 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ github.workspace }}/observable
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Setup Node.js without cache
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # Removed cache parameter to avoid the error
 
-      # Setup Conda environment first
-      - name: Setup Miniconda
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          auto-update-conda: true
-          activate-environment: retail-electricity
-          environment-file: retail-electricity.yml
-          auto-activate-base: false
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
 
-      # Install Node dependencies after conda setup
+      - name: Install Python dependencies
+        run: uv sync
+
       - name: Install Node dependencies
-        shell: bash -el {0}  # Use the conda-activated shell
-        run: yarn install
+        working-directory: observable
+        run: npm install
 
-      # Build the project
       - name: Build project
-        shell: bash -el {0}
-        run: yarn build
+        working-directory: observable
+        run: uv run npx observable build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: List dist dir
-        run: ls dist
-
-      - name: github-pages
+      - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ github.workspace }}/observable/dist
+          path: observable/dist
 
   deploy:
     environment:
