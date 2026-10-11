@@ -16,9 +16,9 @@ migration_page = r'https://www.maine.gov/mpuc/regulated-utilities/electricity/ch
 
 project_root = Path(__file__).parent.parent
 
-raw_data_dir = Path(project_root, '../raw_data')
+raw_data_dir = Path(project_root, 'raw_data')
 raw_data_dir.mkdir(exist_ok=True)
-process_dir = Path(project_root, '../prepared_data')
+process_dir = Path(project_root, 'prepared_data')
 process_dir.mkdir(exist_ok=True)
 
 def _get_eia_861_paths(start_year=2012, end_year=date.today().year):

@@ -14,7 +14,7 @@ import os
         'part'
     ]
 )
-def eia_df(end_year=2024):
+def eia_df(end_year=2025):
     ft.download_eia_861(end_year=end_year)
     df = ft.process_and_merge_861()
     yield df
@@ -32,7 +32,7 @@ def load_df():
 @dlt.resource
 def standard_offer_df():
     df = pd.read_csv('prepared_data/standard_offer.csv')
-    df['start_date'] = pd.to_datetime(df['start_date'], format='%Y-%m-%d')
+    df['start_date'] = pd.to_datetime(df['start_date'], format='mixed')
     yield df
 
 db_path = os.path.abspath('data/retail_electricity.duckdb')
