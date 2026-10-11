@@ -5,13 +5,14 @@ style: "./styles/style.css"
 ```js
 const json_content = await FileAttachment(`data/cost_comparison.json`).json();
 const cost_db = await DuckDBClient.of({cost_db: json_content});
-const year_summary = await cost_db.sql`
+const year_summary = Array.from(await cost_db.sql`
     SELECT 
         year::INTEGER as year, 
         SUM(res_cost_variance) AS variance
     FROM cost_db
     GROUP BY year
-`;
+    ORDER BY year
+`);
 const premium_total_result = Array.from(await cost_db.sql`
     SELECT 
         SUM(res_cost_variance) AS total_variance,
@@ -22,143 +23,342 @@ const premium_total_result = Array.from(await cost_db.sql`
 const total_variance = premium_total_result[0]?.total_variance;
 const formatted_total = "$" + (total_variance / 1_000_000).toFixed(0) + "M";
 const year_range = premium_total_result[0]?.min_year + " - " + premium_total_result[0]?.max_year
+const max_year = premium_total_result[0]?.max_year
+const years = year_summary.map((d) => Number(d.year));
+
+// Shared year focus: hover previews, click pins
+const pinnedYear = Mutable(null);
+const hoverYear = Mutable(null);
+const setHoverYear = (year) => {
+  const next = year == null ? null : Number(year);
+  if (hoverYear.value !== next) hoverYear.value = next;
+};
+const pinYear = (year) => {
+  const next = year == null ? null : Number(year);
+  pinnedYear.value = pinnedYear.value === next ? null : next;
+};
+// Stable mount so line-chart hover/click survive reactive redraws
+const lineChartMount = document.createElement("div");
+lineChartMount.className = "line-chart-mount";
+lineChartMount.style.cursor = "pointer";
+
+function yearFromLinePointer(event) {
+  const root = lineChartMount.firstElementChild;
+  if (!root?.scale) return null;
+  const xScale = root.scale("x");
+  const svg = root.tagName === "FIGURE" ? root.querySelector("svg") : root;
+  const ctm = svg?.getScreenCTM?.();
+  if (!xScale || !ctm) return null;
+  const point = svg.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  const local = point.matrixTransform(ctm.inverse());
+  let raw = null;
+  if (typeof xScale.invert === "function") {
+    raw = xScale.invert(local.x);
+  } else if (typeof xScale.apply === "function") {
+    let best = null;
+    let bestDist = Infinity;
+    for (const year of years) {
+      const x = xScale.apply(year);
+      if (x == null || !Number.isFinite(x)) continue;
+      const dist = Math.abs(local.x - x);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = year;
+      }
+    }
+    return best == null ? null : Number(best);
+  }
+  if (raw == null || !Number.isFinite(Number(raw))) return null;
+  let nearest = null;
+  let nearestDist = Infinity;
+  for (const year of years) {
+    const dist = Math.abs(Number(year) - Number(raw));
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearest = Number(year);
+    }
+  }
+  return nearestDist <= 0.6 ? nearest : null;
+}
+
+lineChartMount.addEventListener("pointermove", (event) => {
+  setHoverYear(yearFromLinePointer(event));
+});
+lineChartMount.addEventListener("pointerleave", () => setHoverYear(null));
+lineChartMount.addEventListener("click", (event) => {
+  const year = yearFromLinePointer(event);
+  if (year != null) pinYear(year);
+});
 ```
+
+```js
+// Compact the solid header after the first scroll
+const header = document.querySelector("#observablehq-header");
+const onScroll = () => {
+  header?.classList.toggle("is-compact", window.scrollY > 16);
+};
+onScroll();
+window.addEventListener("scroll", onScroll, {passive: true});
+invalidation.then(() => window.removeEventListener("scroll", onScroll));
+```
+
+<div class="announce">Data through ${max_year} · Cumulative premium ${formatted_total}</div>
 
 <div class="hero">
 
-# Maine's $200M (and counting) retail electricity ripoff
+# Maine's <span class="amount">${formatted_total}</span> retail electricity ripoff
 
 ## Each year since 2013, Maine customers have paid more than they needed to for electricity. If customers had taken the standard offer instead of buying service from retail suppliers, who sometimes sell door-to-door, they would have saved ${formatted_total} from ${year_range}.
 
 </div>
 
 ```js
-function createAnnualPremiumChart({
-                                      data,
-                                      totalAmount,
-                                      yearRange,
-                                      width = 500,
-                                      height = 400,
-                                      barColor = "#e06060",
-                                      title = null
-                                  }) {
-    return Plot.plot({
-        title: title || `Retail supplier charges above the standard offer`,
-        subtitle: `Comparing aggregate sales/kwh to a weighted standard offer from ${year_range}`,
-        width: Math.max(500, width),
-        marginTop: 100,
-        className: 'custom-plot',
-        height: height,
-        x: {
-            label: "Year",
-            scale: {
-                type: 'band',
-                interval: 2
-            },
-            tickFormat: (d) => `${d}`
-        },
-        y: {
-            grid: true,
-            label: "Cost over standard offer"
-        },
-        marks: [
-            Plot.rectY(data, {
-                x: "year",
-                y: "variance",
-                fill: barColor,
-                target: "_top"
-            }),
-            Plot.text(data, {
-                x: "year",
-                y: "variance",
-                text: d => "$" + (d.variance / 1_000_000).toFixed(1) + "M",
-                dy: -6, // move the label a bit above the top of the bar
-            }),
-            Plot.axisY({
-                marginLeft: 50,
-                tickFormat: d => "$" + (d / 1_000_000).toFixed(0) + "M"
-            }),
-            Plot.axisX({
-                tickFormat: d => d.toString(),
-                label: null
-            }),
-            Plot.tip(
-                [`Electricity Maine makes up 81 percent of the market in this year, by kWh sales.`],
-                {
-                    x: 2015,
-                    y: 37_000_000,
-                    dy: -10,
-                    anchor: "bottom",
-                    fill: 'white'
-                },
-            )
+const focusYear = hoverYear ?? pinnedYear;
+const yearScopeLabel = focusYear == null ? year_range : String(focusYear);
+const yearFilterPinned = pinnedYear != null;
+```
 
-        ]
-    });
+```js
+// Top chart depends on pinnedYear only (not hover) so pointer handlers stay alive
+const chartWidth = Math.max(720, width);
+const chartHeight = 480;
+const barScopeLabel = pinnedYear == null ? year_range : String(pinnedYear);
+
+const barChart = Plot.plot({
+  title: `Retail supplier charges above the standard offer`,
+  width: chartWidth,
+  height: chartHeight,
+  marginTop: 70,
+  marginLeft: 54,
+  marginRight: 24,
+  marginBottom: 36,
+  className: "custom-plot",
+  style: {
+    background: "transparent",
+    color: "#1a1a1a",
+    fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+    cursor: "pointer"
+  },
+  x: {
+    label: null,
+    tickFormat: (d) => `${d}`
+  },
+  y: {
+    grid: true,
+    label: null
+  },
+  marks: [
+    Plot.rectY(year_summary, {
+      x: "year",
+      y: "variance",
+      fill: (d) => {
+        const base = d.variance < 0 ? "#1a1a1a" : "#eb0000";
+        if (pinnedYear == null) return base;
+        return Number(d.year) === Number(pinnedYear) ? base : "#d8d8d8";
+      },
+      stroke: (d) =>
+        pinnedYear != null && Number(d.year) === Number(pinnedYear) ? "#000000" : "none",
+      strokeWidth: 1.5,
+      title: (d) => `${d.year}: $${(d.variance / 1_000_000).toFixed(1)}M`
+    }),
+    Plot.text(year_summary, {
+      x: "year",
+      y: "variance",
+      text: (d) => "$" + (d.variance / 1_000_000).toFixed(1) + "M",
+      dy: -6,
+      fill: (d) =>
+        pinnedYear == null || Number(d.year) === Number(pinnedYear) ? "#1a1a1a" : "#b0b0b0"
+    }),
+    Plot.text(["↑ Cost over standard offer"], {
+      frameAnchor: "top-right",
+      dx: -4,
+      dy: -2,
+      fill: "#1a1a1a",
+      fontSize: 12,
+      textAnchor: "end"
+    }),
+    Plot.axisY({
+      label: null,
+      tickFormat: (d) => "$" + (d / 1_000_000).toFixed(0) + "M"
+    }),
+    Plot.axisX({
+      tickFormat: (d) => d.toString(),
+      label: null
+    }),
+    Plot.tip(
+      [`Electricity Maine makes up 81 percent of the market in this year, by kWh sales.`],
+      {
+        x: 2015,
+        y: 37_000_000,
+        dy: -10,
+        anchor: "bottom",
+        fill: "#ffffff",
+        stroke: "#000000"
+      }
+    )
+  ]
+});
+
+const yearPlotRoot = barChart;
+const yearPlotSvg =
+  yearPlotRoot.tagName === "FIGURE"
+    ? yearPlotRoot.querySelector("svg")
+    : yearPlotRoot;
+
+function yearFromPointer(event) {
+  const xScale = yearPlotRoot.scale?.("x");
+  const svg = yearPlotSvg;
+  if (!xScale?.apply || !svg) return null;
+  const ctm = svg.getScreenCTM?.();
+  if (!ctm) return null;
+  const point = svg.createSVGPoint();
+  point.x = event.clientX;
+  point.y = event.clientY;
+  const local = point.matrixTransform(ctm.inverse());
+  const domain = xScale.domain ?? years;
+  const bandwidth = Number(xScale.bandwidth) || 0;
+  let best = null;
+  let bestDist = Infinity;
+  for (const year of domain) {
+    const start = xScale.apply(year);
+    if (start == null || !Number.isFinite(start)) continue;
+    const mid = start + bandwidth / 2;
+    const dist = Math.abs(local.x - mid);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = year;
+    }
+  }
+  if (best == null) return null;
+  if (bandwidth && bestDist > bandwidth) return null;
+  return Number(best);
 }
 
-// Use the function to create and display the chart
-const barChart = createAnnualPremiumChart({
-    data: year_summary,
-    totalAmount: formatted_total,
-    yearRange: year_range,
-    width: width,
-    height: 400
+const onYearMove = (event) => setHoverYear(yearFromPointer(event));
+const onYearLeave = () => setHoverYear(null);
+const onYearClick = (event) => {
+  const year = yearFromPointer(event);
+  if (year != null) pinYear(year);
+};
+yearPlotRoot.style.cursor = "pointer";
+yearPlotRoot.addEventListener("pointermove", onYearMove);
+yearPlotRoot.addEventListener("pointerleave", onYearLeave);
+yearPlotRoot.addEventListener("click", onYearClick);
+invalidation.then(() => {
+  yearPlotRoot.removeEventListener("pointermove", onYearMove);
+  yearPlotRoot.removeEventListener("pointerleave", onYearLeave);
+  yearPlotRoot.removeEventListener("click", onYearClick);
 });
 ```
 
 <div class="chart-container chart-primary">${barChart}</div>
+<p class="chart-note chart-footnote">Note: Comparing aggregate sales/kwh to a weighted standard offer · ${barScopeLabel}</p>
+<p class="chart-note chart-interact-hint">Hover a year on the top chart or price trends to preview · click to pin · click again to clear</p>
 
 ```js
-// Query data by utility company for the bubble chart
-const utility_summary = await cost_db.sql`
-    SELECT 
-        utility_name AS name,
-        SUM(res_cost_variance) AS cost_variance,
-        SUM(sales_kwh) as sales_kwh
-    FROM cost_db
-    GROUP BY utility_name
-    ORDER BY cost_variance DESC
-`;
+// Top 10 suppliers: full range, or a single focused year
+const utility_summary = Array.from(
+  await (focusYear == null
+    ? cost_db.sql`
+        SELECT
+          utility_name AS name,
+          SUM(res_cost_variance) AS cost_variance,
+          SUM(sales_kwh) as sales_kwh
+        FROM cost_db
+        GROUP BY utility_name
+        ORDER BY ABS(SUM(res_cost_variance)) DESC
+        LIMIT 10
+      `
+    : cost_db.sql`
+        SELECT
+          utility_name AS name,
+          SUM(res_cost_variance) AS cost_variance,
+          SUM(sales_kwh) as sales_kwh
+        FROM cost_db
+        WHERE year = ${focusYear}
+        GROUP BY utility_name
+        ORDER BY ABS(SUM(res_cost_variance)) DESC
+        LIMIT 10
+      `)
+);
+
+// Wrap supplier names to a fixed character width so left labels aren't clipped
+const utilityLabelChars = 18;
+function wrapUtilityLabel(text, maxChars = utilityLabelChars) {
+  const words = String(text).replace(/,/g, "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+  for (const word of words) {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxChars && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.join("\n");
+}
+
+const utilityPlotWidth = Math.max(480, Math.floor(width / 2) - 24);
+const utilityLabelWidth = Math.ceil(utilityLabelChars * 8.6) + 28;
+const utilityChartHeight = 420;
+const utilitySubtitle = yearFilterPinned
+  ? `Top 10 suppliers · single year filter · ${yearScopeLabel}`
+  : `Top 10 suppliers · ${yearScopeLabel}`;
 
 const utilityChart = Plot.plot({
     title: 'Charges to customers above the standard offer',
-    subtitle: `Comparing aggregate sales/kwh to a weighted standard offer from ${year_range}`,
+    subtitle: utilitySubtitle,
     className: 'custom-plot',
+    width: utilityPlotWidth,
+    height: utilityChartHeight,
+    marginLeft: utilityLabelWidth,
+    marginRight: 64,
+    marginTop: 60,
+    marginBottom: 40,
+    style: {
+        background: "transparent",
+        color: "#1a1a1a",
+        fontFamily: '"IBM Plex Mono", ui-monospace, monospace',
+        fontSize: "14px"
+    },
     marks: [
         Plot.barX(utility_summary, {
             x: "cost_variance",
             y: "name",
-            fill: "#e06060",
-            tip: true,
-            sort: {y: "x", reverse: true}
+            fill: (d) => (d.cost_variance < 0 ? "#1a1a1a" : "#eb0000"),
+            tip: true
         }),
         Plot.axisY({
-            marginLeft: width / 3.25,
-            label: null
+            label: null,
+            tickSize: 0,
+            tickPadding: 10,
+            tickFormat: (d) => wrapUtilityLabel(d)
         }),
         Plot.axisX({
             tickFormat: d => "$" + (d / 1_000_000).toFixed(0) + "M",
             label: null
         }),
-        // Optional: Add values at the end of each bar
         Plot.text(utility_summary, {
             x: "cost_variance",
             y: "name",
-            text: d => "$" + (d.cost_variance / 1_000_000).toFixed(2) + "M",
-            dx: 5,
+            text: d => "$" + (d.cost_variance / 1_000_000).toFixed(1) + "M",
+            dx: 8,
             textAnchor: "start",
-            marginRight: 100,
-            sort: {y: "x", reverse: true}
+            fill: "#1a1a1a",
+            fontSize: 13
         })
     ],
     x: {
-        label: "Cost Variance ($)",
-        tickFormat: d => "$" + (d / 1_000_000).toFixed(0) + "M",
-        scale: {
-            type: 'band',
-            interval: 40_000_000
-        },
+        label: null,
+        tickFormat: d => "$" + (d / 1_000_000).toFixed(0) + "M"
+    },
+    y: {
+        domain: utility_summary.map((d) => d.name)
     }
 });
 
@@ -166,8 +366,7 @@ const utility = view(utilityChart)
 ```
 
 ```js
-// Query time series data for the line chart with updated SQL
-const price_trends = await cost_db.sql`
+const price_trends = Array.from(await cost_db.sql`
     SELECT * FROM
         (SELECT
             year::INTEGER AS year,
@@ -185,43 +384,80 @@ const price_trends = await cost_db.sql`
         FROM cost_db
         GROUP BY year
     ) ORDER BY year
-`;
+`);
 
-// Create an interactive line chart with hover effects
+const focusTrend = focusYear == null
+  ? []
+  : price_trends.filter((d) => Number(d.year) === Number(focusYear));
+
+const lineSubtitle = [
+  `Annual average for ${utility?.name ?? "all suppliers"}`,
+  yearScopeLabel
+].join(" · ");
+
 const lineChart = Plot.plot({
     title: `Electricity Price Trends: Standard Offer vs. Retail Rates`,
-    subtitle: `Plotted against the annual average for ${utility?.name ?? 'all suppliers'}`,
+    subtitle: lineSubtitle,
     className: "custom-plot",
+    width: Math.max(480, Math.floor(width / 2) - 24),
+    height: utilityChartHeight,
+    marginTop: 60,
+    marginBottom: 40,
+    style: {
+        background: "transparent",
+        color: "#1a1a1a",
+        fontFamily: '"IBM Plex Mono", ui-monospace, monospace'
+    },
     color: {
         legend: true,
         domain: ['Standard offer', 'Retail supplier'],
-        range: ['#4dc4c4', '#e06060']
+        range: ['#1a1a1a', '#eb0000']
     },
     x: {label: "Year"},
     y: {
-        label: "Price (¢/kWh)",
+        label: "Price ($/kWh)",
         zero: true
     },
     marks: [
-        // Add a horizontal zero line
         Plot.ruleY([0]),
         Plot.axisX({
             tickFormat: d => d.toString()
         }),
-        // Retail price line
         Plot.line(price_trends, {
             x: "year",
             y: "avg_price",
             stroke: 'category',
+            strokeWidth: 2.5,
+            strokeOpacity: focusYear == null ? 1 : 0.35,
             tip: true,
-            title: d => `Year: ${d.year}\nRetail Price: $${d.avg_price.toFixed(2)}¢/kWh`
+            title: d => `Year: ${d.year}\n${d.category}: $${d.avg_price.toFixed(3)}/kWh`
         }),
-        // Add label for standard offer line using select transform to get the last point
+        Plot.dot(price_trends, {
+            x: "year",
+            y: "avg_price",
+            fill: 'category',
+            r: 3,
+            fillOpacity: focusYear == null ? 1 : 0.35
+        }),
+        Plot.ruleX(focusYear == null ? [] : [focusYear], {
+            stroke: "#eb0000",
+            strokeWidth: 2,
+            strokeOpacity: 0.85
+        }),
+        Plot.dot(focusTrend, {
+            x: "year",
+            y: "avg_price",
+            fill: "category",
+            r: 6,
+            stroke: "#000000",
+            strokeWidth: 1.25
+        }),
         Plot.text(price_trends, Plot.selectLast({
                 x: "year",
                 y: "avg_price",
                 z: 'category',
                 text: (d) => '$' + (d.avg_price).toFixed(2) + '/kwh',
+                fill: "#1a1a1a",
                 frameAnchor: "right",
                 dx: -5
             }
@@ -229,22 +465,21 @@ const lineChart = Plot.plot({
     ]
 });
 
-const line_trend = view(lineChart)
+lineChartMount.replaceChildren(lineChart);
 ```
 
 <div class="dashboard">
-<div class="grid grid-cols-2" style="gap: 1.5rem; align-items: start;">
-  <div class="chart-container">${utilityChart}</div>
-  <div class="chart-container">${lineChart}</div>
+<div class="grid grid-cols-2" style="gap: 1.75rem; align-items: start;">
+  <div class="chart-container chart-suppliers">${utilityChart}</div>
+  <div class="chart-container chart-line">${lineChartMount}</div>
 </div>
 </div>
 
-_Some suppliers, such as Clearview Electric, offered electricity supplied by renewable sources, at a premium cost. In
-most cases, retail suppliers acquire power from sources that match the regional mix of power generation._
+<p class="chart-note">Some suppliers, such as Clearview Electric, offered electricity supplied by renewable sources, at a premium cost. In most cases, retail suppliers acquire power from sources that match the regional mix of power generation.</p>
 
 ## About the data
 
-This project sources data from the U.S. Energy Information Administration and the Maine Public Utilities Commission. For details on the data pipeline and transformations, refer to the project [Github repository](https://github.com/darrenfishell/retail-electricity).
+This project sources data from the U.S. Energy Information Administration and the Maine Public Utilities Commission. For details on the data pipeline and transformations, refer to the project [Github repository](https://github.com/darrenfishell/retail-electricity-ripoff).
 
 This pipeline is a dramatic improvement over the Tableau Prep and manual data wrangling used for some of the very first analyses. Rebuilding this with more flexible code-first tools has long been on my list. As was rebuilding the core visualizations with Observable Plot instead of Tableau.
 
@@ -252,7 +487,7 @@ This pipeline is a dramatic improvement over the Tableau Prep and manual data wr
 
 The analysis provides context for a series of reporting I conducted for the Bangor Daily News and the Maine Monitor, both which provided some important additional context for the data. Regulators have called attention to bad practices in the industry for many years, as has the state's public advocate, but the general trend continues of the retail market costing customers more.
 
-The last time I reported on the subject for any outlet was 2020, for The Maine Monitor, when the forgone savings totaled $132 million. As of this writing (2025), it now totals $185.5 million.
+The last time I reported on the subject for any outlet was 2020, for The Maine Monitor, when the forgone savings totaled $132 million. As of this writing (2026), it now totals ${formatted_total}.
 
 > Maine Monitor: [The $132M electricity rip-off](https://themainemonitor.org/private-electricity-suppliers-cost-mainers-132-million-more-than-necessary/)
 
@@ -328,7 +563,7 @@ Elin Katz, Connecticut's Consumer Counsel in 2018, said at the time "They’re j
 
 ### What's ahead
 
-In March, the newly appointed public advocate, Heather Sanborn, sought to get detailed geographic data from retail suppliers on the markets that they serve, hoping to understand demographic trends in those areas.
+In March 2025, the newly appointed public advocate, Heather Sanborn, sought to get detailed geographic data from retail suppliers on the markets that they serve, hoping to understand demographic trends in those areas.
 
 > Press Herald: [Maine’s public advocate seeks access to billing data from electricity suppliers](https://www.pressherald.com/2025/03/19/maines-advocate-seeks-access-to-billing-data-from-electricity-suppliers/)
 
